@@ -8,7 +8,7 @@ import re
 from .fusion_brep_util import *
 from .fusion_base_combines import BaseCombines
 from .fusion_cf_addin import FusionCustomFeatureAddIn
-from .fusion_util import *
+from .fusion_util import EntityRef, Parameter, cmOrIn
 
 
 @dataclass
@@ -26,15 +26,18 @@ class BoxJointParameters:
 	maxFingers: Parameter = field(
 		default_factory=lambda: Parameter(33))
 	minFingerWidth: Parameter = field(
-		default_factory=lambda: Parameter.length(centimeters=cmOrIn(2.5, 1)))  # 2.5cm or 1"
+		default_factory=lambda: Parameter.length(centimeters=cmOrIn(2.54, 1)))  # 2.5cm or 1"
 	maxFingerWidth: Parameter = field(
-		default_factory=lambda: Parameter.length(centimeters=cmOrIn(15, 6)))  # 15cm or 6"
+		default_factory=lambda: Parameter.length(centimeters=cmOrIn(15.24, 6)))  # 15cm or 6"
 	fingerRatio: Parameter = field(
 		default_factory=lambda: Parameter(0.5))
 	margin: Parameter = field(
 		default_factory=lambda: Parameter.length(centimeters=0))
 	bitDiameter: Parameter = field(
-		default_factory=lambda: Parameter.length(centimeters=0.635))  # 1/4"
+		default_factory=lambda: Parameter.length(centimeters=0))  # 1/4"
+	kerf: Parameter = field(
+		default_factory=lambda: Parameter.length(centimeters=0)
+	)
 
 
 class BoxJointAddIn(FusionCustomFeatureAddIn):
@@ -124,6 +127,14 @@ class BoxJointAddIn(FusionCustomFeatureAddIn):
 		input.minimumValue = 0
 		input.isMinimumInclusive = True
 		input.isMinimumLimited = True
+	
+		input = inputs.addValueInput(
+			'kerf', 'Kerf',
+			unitType=params.kerf.units,
+			initialValue=params.kerf.valueInput)
+		input.minimumValue = 0
+		input.isMinimumInclusive = True
+		input.isMinimumLimited = True
 
 		# For error message output.
 		inputs.addTextBoxCommandInput('error', '', '', numRows=1, isReadOnly=True)
@@ -182,6 +193,8 @@ class BoxJointAddIn(FusionCustomFeatureAddIn):
 		commandInputs.itemById('fingerRatio').expression = params.fingerRatio.expression
 		commandInputs.itemById('margin').expression = params.margin.expression
 		commandInputs.itemById('bitDiameter').expression = params.bitDiameter.expression
+		commandInputs.itemById('kerf').expression = params.kerf.expression
+
 
 	def inputsToParams(self, commandInputs: adsk.core.CommandInputs) -> BoxJointParameters:
 		facesInput: adsk.core.SelectionCommandInput = commandInputs.itemById('faces')
@@ -198,6 +211,8 @@ class BoxJointAddIn(FusionCustomFeatureAddIn):
 			fingerRatio=Parameter(commandInputs.itemById('fingerRatio')),
 			margin=Parameter(commandInputs.itemById('margin')),
 			bitDiameter=Parameter(commandInputs.itemById('bitDiameter')),
+			kerf=Parameter(commandInputs.itemById('kerf')),
+
 		)
 
 	def customFeatureToParams(self, feature: adsk.fusion.CustomFeature) -> BoxJointParameters:
@@ -216,6 +231,7 @@ class BoxJointAddIn(FusionCustomFeatureAddIn):
 			fingerRatio=Parameter(parameters.itemById('fingerRatio') or 0.5),
 			margin=Parameter(parameters.itemById('margin') or 0),
 			bitDiameter=Parameter(parameters.itemById('bitDiameter') or 0),
+			kerf=Parameter(parameters.itemById('kerf') or 0),
 		)
 
 	def getCustomParameters(self, params: BoxJointParameters) -> dict[str, Parameter]:
@@ -227,6 +243,7 @@ class BoxJointAddIn(FusionCustomFeatureAddIn):
 			'fingerRatio': params.fingerRatio,
 			'margin': params.margin,
 			'bitDiameter': params.bitDiameter,
+			'kerf': params.kerf
 		}
 
 	def getCustomParameterDescriptions(self) -> dict[str, str]:
@@ -238,6 +255,7 @@ class BoxJointAddIn(FusionCustomFeatureAddIn):
 			'fingerRatio': 'Finger Ratio',
 			'margin': 'Margin',
 			'bitDiameter': 'Tool Diameter',
+			'kerf': 'Kerf',
 		}
 
 	def getCustomNamedValues(self, params: BoxJointParameters) -> dict[str, str]:
@@ -284,6 +302,7 @@ def computeBoxJoint(params: BoxJointParameters) -> BaseCombines:
 	rAB = (1 - fingerRatio) / fingerRatio
 	rBA = fingerRatio / (1 - fingerRatio)
 	margin = max(params.margin.value, 0)
+	kerf = max(params.kerf.value, 0)
 
 	# Add all possible target bodies in case there are no operations on some.
 	for face in faces:
@@ -358,6 +377,10 @@ def computeBoxJoint(params: BoxJointParameters) -> BaseCombines:
 		if fingerBWidth > maxFingerWidth:
 			fingerBWidth = maxFingerWidth
 			fingerAWidth = maxFingerWidth * rAB
+		
+		fingerAWidth = max(fingerAWidth-kerf, 3*kerf)
+		fingerBWidth = max(fingerBWidth-kerf, 3*kerf)
+
 		length = fingerAWidth + math.floor(fingers / 2) * (fingerAWidth + fingerBWidth)
 		margin = (lengthWithMargins - length) / 2
 
@@ -368,7 +391,7 @@ def computeBoxJoint(params: BoxJointParameters) -> BaseCombines:
 		# Create a template for a single B finger.
 		finger = createSimpleBox(
 			minX, minY, minZ,
-			maxX - minX, maxY - minY, fingerBWidth)
+			maxX - minX, maxY - minY - kerf, fingerBWidth)
 		fingerACutter = fingerBJoiner = finger
 
 		# Define various reference points and vectors on the finger cross-section.
