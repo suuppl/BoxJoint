@@ -391,7 +391,7 @@ def computeBoxJoint(params: BoxJointParameters) -> BaseCombines:
 		# Create a template for a single B finger.
 		finger = createSimpleBox(
 			minX, minY, minZ,
-			maxX - minX, maxY - minY - kerf, fingerBWidth)
+			maxX - minX, maxY - minY, fingerBWidth)
 		fingerACutter = fingerBJoiner = finger
 
 		# Define various reference points and vectors on the finger cross-section.
