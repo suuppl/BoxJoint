@@ -26,9 +26,9 @@ class BoxJointParameters:
 	maxFingers: Parameter = field(
 		default_factory=lambda: Parameter(33))
 	minFingerWidth: Parameter = field(
-		default_factory=lambda: Parameter.length(centimeters=cmOrIn(2.54, 1)))  # 2.5cm or 1"
+		default_factory=lambda: Parameter.length(centimeters=1)) 
 	maxFingerWidth: Parameter = field(
-		default_factory=lambda: Parameter.length(centimeters=cmOrIn(15.24, 6)))  # 15cm or 6"
+		default_factory=lambda: Parameter.length(centimeters=15))  # 15cm or 6"
 	fingerRatio: Parameter = field(
 		default_factory=lambda: Parameter(0.5))
 	margin: Parameter = field(
@@ -128,13 +128,13 @@ class BoxJointAddIn(FusionCustomFeatureAddIn):
 		input.isMinimumInclusive = True
 		input.isMinimumLimited = True
 	
-		input = inputs.addValueInput(
-			'kerf', 'Kerf',
-			unitType=params.kerf.units,
-			initialValue=params.kerf.valueInput)
-		input.minimumValue = 0
-		input.isMinimumInclusive = True
-		input.isMinimumLimited = True
+		# input = inputs.addValueInput(
+		# 	'kerf', 'Kerf',
+		# 	unitType=params.kerf.units,
+		# 	initialValue=params.kerf.valueInput)
+		# input.minimumValue = 0
+		# input.isMinimumInclusive = True
+		# input.isMinimumLimited = True
 
 		# For error message output.
 		inputs.addTextBoxCommandInput('error', '', '', numRows=1, isReadOnly=True)
