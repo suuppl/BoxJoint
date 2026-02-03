@@ -5,10 +5,10 @@ import itertools
 import math
 import re
 
-from .fusion_brep_util import *
+from .fusion_brep_util import tempBrepMgr, createObliquePrism, createSimpleBox, createPrism, createFaceFromCurves, BooleanOperation
 from .fusion_base_combines import BaseCombines
 from .fusion_cf_addin import FusionCustomFeatureAddIn
-from .fusion_util import EntityRef, Parameter, cmOrIn
+from .fusion_util import EntityRef, Parameter, UserInputError, log
 
 
 @dataclass
@@ -193,7 +193,7 @@ class BoxJointAddIn(FusionCustomFeatureAddIn):
                 log(f"User input error: {withoutHtml(errorMessage)}")
                 errorBox.formattedText = errorMessage
         elif errorBox.text:
-            log(f"User input error cleared")
+            log("User input error cleared")
             errorBox.formattedText = ""
 
         return errorMessage is None
