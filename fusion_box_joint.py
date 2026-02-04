@@ -153,10 +153,6 @@ class BoxJointAddIn(FusionCustomFeatureAddIn):
             unitType=params.kerf.units,
             initialValue=params.kerf.valueInput,
         )
-        input.minimumValue = 0
-        input.isMinimumInclusive = True
-        input.isMinimumLimited = True
-
         # For error message output.
         inputs.addTextBoxCommandInput("error", "", "", numRows=1, isReadOnly=True)
 
@@ -334,7 +330,7 @@ def computeBoxJoint(params: BoxJointParameters) -> BaseCombines:
     rAB = (1 - fingerRatio) / fingerRatio
     rBA = fingerRatio / (1 - fingerRatio)
     margin = max(params.margin.value, 0)
-    kerf = max(params.kerf.value, 0)
+    kerf = -params.kerf.value
 
     # Add all possible target bodies in case there are no operations on some.
     for face in faces:
@@ -753,47 +749,56 @@ def computeBoxJoint(params: BoxJointParameters) -> BaseCombines:
                     # Ignore if wedge is too tiny.
                     if not any("ASM_WIRE_SELF_INTERSECTS" in arg for arg in e.args):
                         raise
-
         # Move each finger into its final position and combine with body A and body B.
         for i in range(0, math.floor(fingers / 2)):
+            # NOTE this kerf handling is a bit of a hack and only properly works when the bitDiameter is zero
+            # increase size along x by kerf
+            translateUp.setCell(0, 0, (maxX-minX + 2*kerf)/ (maxX-minX))
             translateUp.setCell(
-                2, 3, margin + fingerAWidth + i * (fingerAWidth + fingerBWidth)
+                0, 3, - kerf
+            )
+            
+            # increase size along z by kerf
+            translateUp.setCell(2, 2, (fingerAWidth + kerf)/fingerAWidth)
+            translateUp.setCell(
+                2, 3, - kerf/2 + margin + fingerAWidth + i * (fingerAWidth + fingerBWidth)
             )
 
             finger = tempBrepMgr.copy(fingerACutter)
-            tempBrepMgr.transform(finger, translateUp)
             tempBrepMgr.booleanOperation(
                 finger, overlap, adsk.fusion.BooleanTypes.IntersectionBooleanType
             )
+            tempBrepMgr.transform(finger, translateUp)
             tempBrepMgr.transform(finger, nominalToJoint)
             baseCombines.add(
                 BooleanOperation.difference(targetBody=bodyA, toolBody=finger)
             )
 
-            # adjust finger B depth by kerf
-            adjustedFingerBDepth = fingerBWidth - kerf
-            scaleFactorZ = adjustedFingerBDepth / fingerBWidth
-
-            # create matrix to adjust z scale
-            scaleMatrix = adsk.core.Matrix3D.create()
-            scaleMatrix.setCell(0, 0, 1)
-            scaleMatrix.setCell(1, 1, 1)
-            scaleMatrix.setCell(2, 2, scaleFactorZ)
-
-            # apply
-            finger = tempBrepMgr.copy(fingerBJoiner)
-            tempBrepMgr.transform(finger, scaleMatrix)
+            # reset size along x to original
+            translateUp.setCell(0, 0, 1)
             translateUp.setCell(
-                2,
-                3,
-                fingerAWidth
-                + i * (fingerAWidth + fingerBWidth)
-                - (kerf * math.floor(fingers / 2)),
+                0, 3, 0
             )
-            tempBrepMgr.transform(finger, translateUp)
+            # TODO decrease size along y by kerf
+            # should actually grow the base body along y by kerf
+            # translateUp.setCell(1, 1, (maxY-minY - kerf)/ (maxY-minY))
+            # translateUp.setCell(
+            #     1, 3, kerf
+            # )
+            
+            # decrease size along z by kerf
+            translateUp.setCell(2, 2, (fingerBWidth - kerf)/fingerBWidth)
+            translateUp.setCell(
+                2, 3, kerf/2 + margin + fingerAWidth + i * (fingerAWidth + fingerBWidth)
+            )
+
+
+            finger = tempBrepMgr.copy(fingerBJoiner)
+            
             tempBrepMgr.booleanOperation(
                 finger, overlap, adsk.fusion.BooleanTypes.IntersectionBooleanType
             )
+            tempBrepMgr.transform(finger, translateUp)
             tempBrepMgr.transform(finger, nominalToJoint)
             baseCombines.add(BooleanOperation.union(targetBody=bodyB, toolBody=finger))
 
